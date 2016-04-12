@@ -18,7 +18,9 @@
         android:layout_alignParentStart="true"
         android:layout_alignParentRight="true"
         android:layout_alignParentEnd="true"
-        android:hint="Account id or nickname" />
+        android:hint="Account id or nickname"
+        android:imeOptions="actionSearch"
+        android:inputType="text" />
 
     <Button
         android:layout_width="wrap_content"
@@ -36,5 +38,14 @@
         android:layout_alignRight="@+id/searchTxt"
         android:layout_alignEnd="@+id/searchTxt"
         android:choiceMode="singleChoice" />
+
+    <ProgressBar
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/searchProBar"
+        android:layout_alignBottom="@+id/searchBtn"
+        android:layout_centerHorizontal="true"
+        android:indeterminate="false"
+        android:visibility="invisible" />
 
 </RelativeLayout>

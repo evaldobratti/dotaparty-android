@@ -1,25 +1,35 @@
 package me.dotaparty;
 
 import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.graphics.drawable.Drawable;
 import android.media.Image;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.AttributeSet;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ListAdapter;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.loopj.android.http.AsyncHttpResponseHandler;
 import com.loopj.android.http.JsonHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
+import com.nostra13.universalimageloader.core.ImageLoader;
+import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -34,71 +44,92 @@ import java.util.List;
 
 import cz.msebera.android.httpclient.Header;
 import cz.msebera.android.httpclient.protocol.HTTP;
+import me.dotaparty.domain.Account;
+import me.dotaparty.view.adapters.AccountAdapter;
 
 public class Main extends AppCompatActivity {
+
+
+    private ProgressBar searchProgBar;
+    private ListView usersList;
+    private EditText searchTxt;
+    private Button searchBtn;
+
+    @Override
+    public View onCreateView(String name, Context context, AttributeSet attrs) {
+        ImageLoader.getInstance().init(ImageLoaderConfiguration.createDefault(this));
+        return super.onCreateView(name, context, attrs);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        final EditText searchTxt = (EditText) findViewById(R.id.searchTxt);
-        Button searchBtn = (Button) findViewById(R.id.searchBtn);
-        final ListView usersList = (ListView) findViewById(R.id.usersList);
+        searchTxt = (EditText) findViewById(R.id.searchTxt);
+        usersList = (ListView) findViewById(R.id.usersList);
+        searchProgBar = (ProgressBar) findViewById(R.id.searchProBar);
+        searchBtn = (Button) findViewById(R.id.searchBtn);
+
+        searchTxt.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                if (actionId == EditorInfo.IME_ACTION_SEARCH)
+                    search();
+                return false;
+            }
+        });
 
         searchBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                RequestParams params = new RequestParams();
-                params.add("query", searchTxt.getText().toString());
-                HttpUtils.get("find", params, new JsonHttpResponseHandler(){
-                    @Override
-                    public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
-                        try {
-                            JSONArray accounts = (JSONArray)response.get("accounts");
-
-                            final List<JSONObject> accs = new ArrayList<JSONObject>();
-                            for (int i = 0; i < accounts.length(); i++) {
-                                JSONObject acc = accounts.getJSONObject(i);
-                                accs.add(acc);
-                            }
-
-                            usersList.setAdapter(new ArrayAdapter<JSONObject>(Main.this, 0, accs){
-                                @Override
-                                public View getView(int position, View convertView, ViewGroup parent) {
-                                    Log.i("aff", "carregando " + position);
-
-                                    JSONObject acc = getItem(position);
-                                    // Check if an existing view is being reused, otherwise inflate the view
-                                    convertView = LayoutInflater.from(getContext()).inflate(R.layout.account_list_item, parent, false);
-                                    TextView nameTxt = (TextView) convertView.findViewById(R.id.nameTxt);
-                                    TextView accountIdTxt = (TextView) convertView.findViewById(R.id.accountIdTxt);
-                                    ImageView avatarImg = (ImageView) convertView.findViewById(R.id.avatarImg);
-
-                                    try {
-                                        nameTxt.setText(acc.getJSONObject("current_update").getString("persona_name"));
-                                        accountIdTxt.setText(acc.getString("account_id"));
-                                        String avatarUrl = acc.getJSONObject("current_update").getString("url_avatar_full");
-
-                                        new ImageViewCharger(avatarImg).execute(avatarUrl);
-                                    } catch (JSONException e) {
-                                        e.printStackTrace();
-                                    }
-
-                                    return convertView;
-                                }
-                            });
-                        } catch (JSONException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                });
+                search();
             }
         });
+        usersList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView parent, View view, int position, long id) {
+                Account account = (Account) parent.getItemAtPosition(position);
+                new AlertDialog.Builder(Main.this)
+                        .setTitle("Confirm")
+                        .setMessage("You are going to identify yourself as " + account.getPersonaName() +
+                        " and your matches will start to download.")
+                        .setPositiveButton("Sure!", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                Intent intent = new Intent(Main.this, Profile.class);
+                                startActivity(intent);
+                            }
+                        })
+                        .setNegativeButton("No way", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                dialog.dismiss();
+                            }
+                        })
+                .show();
 
-
+            }
+        });
     }
 
+    private void search() {
+        searchBtn.setVisibility(View.INVISIBLE);
+        searchProgBar.setVisibility(View.VISIBLE);
+        RequestParams params = new RequestParams();
+        params.add("query", searchTxt.getText().toString());
+        HttpUtils.get("find", params, new JsonHttpResponseHandler() {
+            @Override
+            public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
+                List<Account> accs = Account.fromJSONArray(response.optJSONArray("accounts"));
+
+                usersList.setAdapter(new AccountAdapter(Main.this, accs));
+
+                searchBtn.setVisibility(View.VISIBLE);
+                searchProgBar.setVisibility(View.INVISIBLE);
+            }
+        });
+    }
 
 
 }
